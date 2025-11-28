@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Screen Break Reminder</title>
+
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: "Segoe UI", Arial, sans-serif;
+        background: linear-gradient(135deg, #a8edea, #fed6e3);
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .container {
+        background: white;
+        padding: 30px 40px;
+        border-radius: 16px;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        width: 380px;
+        text-align: center;
+        transition: transform .2s ease;
+    }
+
+    .container:hover {
+        transform: scale(1.02);
+    }
+
+    h2 {
+        margin-top: 0;
+        background: linear-gradient(90deg, #ff6a88, #ff99ac);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    label {
+        font-weight: 600;
+        display: block;
+        text-align: left;
+        margin-top: 15px;
+    }
+
+    input {
+        width: 100%;
+        padding: 10px;
+        margin-top: 6px;
+        border-radius: 8px;
+        border: 1px solid #ccc;
+        transition: all 0.2s ease;
+        font-size: 15px;
+    }
+
+    input:focus {
+        border-color: #ff6a88;
+        box-shadow: 0 0 6px rgba(255,0,90,0.2);
+        outline: none;
+    }
+
+    button {
+        margin-top: 20px;
+        padding: 12px;
+        width: 100%;
+        font-size: 16px;
+        border-radius: 10px;
+        border: none;
+        cursor: pointer;
+        background: linear-gradient(135deg, #ff6a88, #ff99ac);
+        color: white;
+        font-weight: 600;
+        transition: opacity 0.2s ease;
+    }
+
+    button:hover {
+        opacity: 0.85;
+    }
+
+    #status {
+        font-size: 1.3em;
+        margin-top: 25px;
+        color: #444;
+        font-weight: bold;
+    }
+</style>
+
+</head>
+<body>
+
+<div class="container">
+    <h2>Screen Break Reminder</h2>
+
+    <label>Focus Time (minutes):</label>
+    <input id="focusInput" type="number" min="1" value="20">
+
+    <label>Break Time (seconds):</label>
+    <input id="breakInput" type="number" min="5" value="30">
+
+    <button onclick="startTimer()">Start / Update Timer</button>
+
+    <div id="status"></div>
+</div>
+
+<script>
+const STORAGE_KEY = "break_reminder_data_v3";
+
+let state = {
+    mode: "focus",
+    remaining: 20 * 60,
+    focusMinutes: 20,
+    breakSeconds: 30,
+    lastTick: Date.now(),
+    waitingForConfirm: false
+};
+
+function loadState() {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+        state = JSON.parse(saved);
+        const elapsed = Math.floor((Date.now() - state.lastTick) / 1000);
+
+        if (!state.waitingForConfirm) {
+            state.remaining -= elapsed;
+            if (state.remaining < 0) state.remaining = 0;
+        }
+    }
+}
+
+function saveState() {
+    state.lastTick = Date.now();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function startTimer() {
+    const focusMin = parseInt(document.getElementById("focusInput").value);
+    const breakSec = parseInt(document.getElementById("breakInput").value);
+
+    if (focusMin > 0) state.focusMinutes = focusMin;
+    if (breakSec > 0) state.breakSeconds = breakSec;
+
+    state.mode = "focus";
+    state.remaining = state.focusMinutes * 60;
+    state.waitingForConfirm = false;
+
+    saveState();
+    updateUI();
+}
+
+function updateUI() {
+    const modeText = state.mode === "focus" ? "Focus Time" : "Break Time";
+    document.getElementById("status").textContent =
+        `${modeText}: ${state.remaining}s left`;
+}
+
+function tick() {
+    if (state.waitingForConfirm) return;
+
+    state.remaining -= 1;
+
+    if (state.remaining <= 0) {
+        if (state.mode === "focus") {
+
+            // pause countdown until user confirms
+            state.waitingForConfirm = true;
+            saveState();
+            updateUI();
+
+            setTimeout(() => {
+                const ok = confirm("Time for a break!");
+
+                if (ok) {
+                    state.waitingForConfirm = false;
+                    state.mode = "break";
+                    state.remaining = state.breakSeconds;
+                }
+
+                saveState();
+                updateUI();
+            }, 50);
+
+            return;
+        }
+
+        if (state.mode === "break") {
+            state.mode = "focus";
+            state.remaining = state.focusMinutes * 60;
+        }
+    }
+
+    saveState();
+    updateUI();
+}
+
+// Init
+loadState();
+updateUI();
+setInterval(tick, 1000);
+</script>
+
+</body>
+</html>
